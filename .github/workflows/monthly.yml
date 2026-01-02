@@ -3,7 +3,7 @@ on:
   schedule:
     # Runs at 13:15 UK time on the 2nd of every month
     # GitHub Actions doesn't support TZ in cron, so we use UTC and set TZ in the job
-    - cron: "05 15 2 * *"   # 13:15 UTC (which is 13:15 GMT in winter, 14:15 BST in summer)
+    - cron: "*/5 * * * *"   # 13:15 UTC (which is 13:15 GMT in winter, 14:15 BST in summer)
   workflow_dispatch: {}    # lets you run it manually
 
 jobs:
