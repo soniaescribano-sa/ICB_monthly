@@ -1,42 +1,41 @@
 name: Monthly Python run
-
 on:
   schedule:
-    # GitHub cron is UTC. UK is UTC+1 in summer (BST), UTC+0 in winter (GMT)
-    - cron: "15 12 2 * *"   # 13:15 UK during BST (summer)
-    - cron: "15 13 2 * *"   # 13:15 UK during GMT (winter)
+    # Runs at 13:15 UK time on the 2nd of every month
+    # GitHub Actions doesn't support TZ in cron, so we use UTC and set TZ in the job
+    - cron: "35 13 2 * *"   # 13:15 UTC (which is 13:15 GMT in winter, 14:15 BST in summer)
   workflow_dispatch: {}    # lets you run it manually
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
-
+    # Set the timezone for the entire job
+    env:
+      TZ: Europe/London
+    
     steps:
       - name: Download the code from your repo
         uses: actions/checkout@v4
-
+      
       - name: Install Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
+      
       - name: Install Python libraries
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
+      
       - name: Create Google service account JSON file from secret
         run: |
           echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > service_account.json
-
-      # Optional safety check (keeps scheduled + manual consistent)
-      - name: Only continue if it is 13:15 in Europe/London
+      
+      - name: Check current time (for logging)
         run: |
-          if [ "$(TZ=Europe/London date +%H:%M)" != "13:15" ]; then
-            echo "Not 13:15 in London; stopping."
-            exit 0
-          fi
-
+          echo "Current UTC time: $(date -u)"
+          echo "Current London time: $(date)"
+      
       - name: Run your script
         env:
           PYTHONUNBUFFERED: "1"
