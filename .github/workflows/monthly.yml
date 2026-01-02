@@ -1,0 +1,43 @@
+name: Monthly Python run
+
+on:
+  schedule:
+    # GitHub cron is UTC. London is UTC+1 in winter, UTC+2 in summer -  running at 10.30am on 2nd of the month
+    - cron: "30 9 2 * *"   # 10:30 London during CEST (summer)
+    - cron: "30 10 2 * *"   # 10:30 London during CET  (winter)
+  workflow_dispatch: {}    # lets you run it manually
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download the code from your repo
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python libraries
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create Google service account JSON file from secret
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > service_account.json
+
+      - name: Only continue if it is 10:30 in Europe/London
+        run: |
+          if [ "$(TZ=Europe/London date +%H:%M)" != "10:30" ]; then
+            echo "Not 10:30 in London; stopping."
+            exit 0
+          fi
+
+      - name: Run your script
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python fetch_incompleteRTT_ICB.py
