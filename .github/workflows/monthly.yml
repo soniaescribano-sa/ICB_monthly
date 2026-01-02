@@ -1,43 +1,24 @@
 name: Monthly Python run
 on:
   schedule:
-    # Runs at 13:15 UK time on the 2nd of every month
-    # GitHub Actions doesn't support TZ in cron, so we use UTC and set TZ in the job
-    - cron: "*/5 * * * *"   # 13:15 UTC (which is 13:15 GMT in winter, 14:15 BST in summer)
-  workflow_dispatch: {}    # lets you run it manually
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
-    # Set the timezone for the entire job
     env:
       TZ: Europe/London
     
     steps:
-      - name: Download the code from your repo
-        uses: actions/checkout@v4
-      
-      - name: Install Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      
-      - name: Install Python libraries
-        run: |
+      - run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      
-      - name: Create Google service account JSON file from secret
-        run: |
-          echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > service_account.json
-      
-      - name: Check current time (for logging)
-        run: |
-          echo "Current UTC time: $(date -u)"
-          echo "Current London time: $(date)"
-      
-      - name: Run your script
+      - run: echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > service_account.json
+      - run: python fetch_incompleteRTT_ICB.py
         env:
           PYTHONUNBUFFERED: "1"
-        run: |
-          python fetch_incompleteRTT_ICB.py
