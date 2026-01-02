@@ -3,8 +3,8 @@ name: Monthly Python run
 on:
   schedule:
     # GitHub cron is UTC. London is UTC+1 in winter, UTC+2 in summer -  running at 10.30am on 2nd of the month
-    - cron: "01 12 2 * *"   # 10:30 London during CEST (summer)
-    - cron: "01 13 2 * *"   # 10:30 London during CET  (winter)
+    - cron: "06 12 2 * *"   # 10:30 London during CEST (summer)
+    - cron: "06 13 2 * *"   # 10:30 London during CET  (winter)
   workflow_dispatch: {}    # lets you run it manually
 
 jobs:
