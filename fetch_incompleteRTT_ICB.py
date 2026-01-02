@@ -13,61 +13,60 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# ====== CONFIG ======
+# Configuration: page to scrape, target google sheet and credentials
 PAGE_URL = "https://www.england.nhs.uk/statistics/statistical-work-areas/rtt-waiting-times/rtt-data-2025-26/"
-
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1L-22eKojGVYdSq2gPMzX3K8MC9IZVyEtAQ3s7h2jv28/edit?gid=0#gid=0"
 SERVICE_ACCOUNT_JSON = "service_account.json"
 
-META_SHEET_NAME = "meta3"
+# Sheet names: one for metadata one for output data (keeping naming convention from DK original excel)
+META_SHEET_NAME = "meta_all"
 OUTPUT_SHEET_NAME = "incompleteRTT-ICB"
-
 DOWNLOAD_DIR = os.path.abspath("./downloads")
+LONDON_TIME = ZoneInfo("Europe/London")
 
-# Excel specifics
-HEADER_ROW_1_INDEXED = 14
-HEADER_ROW_0_INDEXED = HEADER_ROW_1_INDEXED - 1
-
-# Sheets in file
+# ====== Section relevant to the file we are reading from ======
+# Information from file to scrape: row where data starts and relevant sheet names
+HEADER_ROW = 14 - 1
 ICB_SHEET_NAME = "ICB"
 NATIONAL_SHEET_NAME = "National"
 
-# Filter
+# Define filter column and filer value
 TFC_COL = "Treatment Function Code"
 TFC_VALUE = "C_330"
 
-# Columns to keep
-# Main ICB output: A–F then DH–END
-KEEP_PREFIX_END = "E"
-KEEP_SUFFIX_START = "DG"
+# Columns to keep in differet pages: A-E and DG to end in ICB and A-C and DE-DM in national sheet
+ICB_KEEP_COL = [("A", "E"), ("DG", "DO")]
+NAT_KEEP_COL = [("A", "C"), ("DE", "DM")]
 
-# Extra National entry: A–C then DE–DM (inclusive)
-NAT_KEEP_RANGES = [("A", "C"), ("DE", "DM")]
 
-# National label requirement: set column B values to this for the prepended rows
+
+# ====== Section relevant to the file we are writing to ======
+# Label for national data (add to column B)
 NATIONAL_LABEL = "NATIONAL"
 
-MADRID_TZ = ZoneInfo("Europe/Madrid")
-
+# Meta headers for key info in meta file
 META_HEADERS = [
-    "date",
-    "time",
-    "timezone",
-    "status",
-    "filename",
-    "rows",
-    "cols",
-    "runtime_seconds",
+    "Status",
+    "File",
+    "Date",
+    "Time",
+    "Time Zone",
+    "Log info",
+    "Original File",
+    "# Rows",
+    "# Cols",
+    "Run time (s)",
 ]
-# =====================
 
 
+# Check that downloads folder exist, and create it if not
 def ensure_download_dir():
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 
-# ---------- Google Sheets helpers ----------
+# ====== Section relevant to Google Sheets and formatting ======
 
+# Connect to Google Sheets by its url (need to load credentials from json file)
 def connect_gsheets():
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -77,51 +76,110 @@ def connect_gsheets():
     gc = gspread.authorize(creds)
     return gc.open_by_url(SPREADSHEET_URL)
 
-
-def get_or_create_worksheet(sh, title: str, rows: int = 1000, cols: int = 26):
+# Check if worksheet (ws) exists and if not create it (1000 rows and 30cols is enough?)
+def get_or_create_ws(sh, title: str, rows: int = 1000, cols: int = 30):
     try:
         return sh.worksheet(title)
     except gspread.exceptions.WorksheetNotFound:
-        return sh.add_worksheet(title=title, rows=str(rows), cols=str(cols))
+        return sh.add_ws(title=title, rows=str(rows), cols=str(cols))
 
-
-def clear_and_write_worksheet(ws, df: pd.DataFrame):
+# Clear sheet to avoid mixing data and write to it
+def clear_and_write_ws(ws, df: pd.DataFrame):
     ws.clear()
     df = df.copy()
     df.columns = df.columns.astype(str)
     df = df.where(pd.notnull(df), "")
-    values = [df.columns.tolist()] + df.values.tolist()
+    values = [df.columns.tolist()] + df.values.tolist() #1st headers then actual data
     ws.update(values, value_input_option="USER_ENTERED")
 
+# Conver column number to letter (df has numbers, spreadsheet letters)
+def col_num_to_letter(n: int) -> str:
+    """1 -> A, 2 -> B, 27 -> AA..."""
+    s = ""
+    while n:
+        n, r = divmod(n - 1, 26)
+        s = chr(65 + r) + s
+    return s
 
-def append_meta_row(meta_ws, status: str, filename: str, nrows: int, ncols: int, runtime_seconds: float):
-    now = datetime.now(MADRID_TZ)
+# Formatting for metasheet: headers in bold + centered, values cenetered except long ones (log info + original file) and add emoji for status check
+def format_meta_sheet(meta_ws, ok: bool):
+    num_cols = len(META_HEADERS)
+    last_col = col_num_to_letter(num_cols)
 
-    if not meta_ws.get_all_values():
-        meta_ws.append_row(META_HEADERS, value_input_option="RAW")
+    header_range = f"A1:{last_col}1" # Write header to row 1
+    values_range = f"A2:{last_col}2" # Write values to row 2
 
-    meta_ws.append_row(
-        [
-            now.strftime("%Y-%m-%d"),
-            now.strftime("%H:%M:%S"),
-            "Europe/Madrid",
-            status,
-            filename,
-            nrows,
-            ncols,
-            round(runtime_seconds, 2),
-        ],
+    # Headers centered + bold
+    meta_ws.format(
+        header_range,
+        {"horizontalAlignment": "CENTER", "textFormat": {"bold": True}},
+    )
+
+    # Values centered by default, left for long ones
+    meta_ws.format(
+        values_range,
+        {"horizontalAlignment": "CENTER"},
+    )
+    log_info_idx = META_HEADERS.index("Log info") + 1
+    orig_file_idx = META_HEADERS.index("Original File") + 1
+    meta_ws.format(f"{col_num_to_letter(log_info_idx)}2", {"horizontalAlignment": "LEFT"})
+    meta_ws.format(f"{col_num_to_letter(orig_file_idx)}2", {"horizontalAlignment": "LEFT"})
+
+    # Add a cell colour for check: cell A2
+    fetching_cell = "A2"
+    bg = {"red": 0.85, "green": 0.95, "blue": 0.85} if ok else {"red": 0.98, "green": 0.85, "blue": 0.85}
+    meta_ws.format(
+        fetching_cell,
+        {
+            "horizontalAlignment": "CENTER",
+            "backgroundColor": bg,
+        },
+    )
+
+# Write metadata to meta_ws
+def append_meta_row(meta_ws, status: str, filename: str, num_rows: int, num_cols: int, runtime_seconds: float):
+    # Select emoji based on status prefix (OK or somwthing else)
+    ok = status.startswith("OK")
+    check_emoji = "✅" if ok else "❌"
+
+    # Ensure the sheet is large enough to write into row 5 and has enough columns for all metadata to be there
+    rows_meta = 5
+    cols_meta = max(meta_ws.col_count, len(META_HEADERS))
+    if meta_ws.row_count < rows_meta or meta_ws.col_count < cols_meta:
+        meta_ws.resize(rows=max(meta_ws.row_count, rows_meta), cols=cols_meta)
+    last_col_letter = col_num_to_letter(len(META_HEADERS))
+
+    # Row 1: headers
+    meta_ws.update(
+        f"A1:{last_col_letter}1",
+        [META_HEADERS],
         value_input_option="RAW",
     )
 
+    # Row 2: values
+    now = datetime.now(LONDON_TIME)
+    meta_ws.update(
+        f"A2:{last_col_letter}5",
+        [[
+            check_emoji,
+            OUTPUT_SHEET_NAME,
+            now.strftime("%d/%m/%Y"),
+            now.strftime("%H:%M:%S"),
+            "London",
+            status,
+            filename,
+            num_rows,
+            num_cols,
+            round(runtime_seconds, 2),
+        ]],
+        value_input_option="RAW",
+    )
 
-# ---------- Keep % columns numeric (and other numbers numeric) ----------
+    # Apply formatting
+    format_meta_sheet(meta_ws, ok=ok)
 
-def coerce_numeric_for_sheets(df: pd.DataFrame, protect_cols=None) -> pd.DataFrame:
-    """
-    Convert numeric-looking object columns to numeric dtype BEFORE writing to Sheets,
-    including percent strings like '52.0%' -> 0.52.
-    """
+# Convert numbers and % to an actual numeric type, not just text (otherwise excel operations don't work)
+def convert_to_numeric(df: pd.DataFrame, protect_cols=None) -> pd.DataFrame:
     out = df.copy()
     protect_cols = set(protect_cols or [])
 
@@ -155,27 +213,26 @@ def coerce_numeric_for_sheets(df: pd.DataFrame, protect_cols=None) -> pd.DataFra
         s_clean = s.str.replace(",", "", regex=False)
         converted = pd.to_numeric(s_clean, errors="coerce")
 
-        # Only replace if mostly successful (avoid mangling genuine text cols)
+        # Only replace if mostly successful (avoid genuine text cols)
         if converted.notna().mean() > 0.8:
             out[col] = converted
 
     return out
 
 
-# ---------- NHS page parsing ----------
+# ====== Section for parsing data from NHS webpage ======
 
-MONTH_YEAR_RE = re.compile(
-    r"^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})$"
-)
+# Check possible dates combination, this webpage has format October 2025
+MONTH_YEAR_TEXT = re.compile(r"^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})$")
 
 def parse_month_year(text: str):
     text = text.strip()
-    if not MONTH_YEAR_RE.match(text):
+    if not MONTH_YEAR_TEXT.match(text):
         return None
     return datetime.strptime(text, "%B %Y")
 
-
-def find_latest_incomplete_commissioner_link(page_url: str):
+# Download the webpage and parse it to find link
+def find_commissioner_link(page_url: str):
     headers = {"User-Agent": "Mozilla/5.0"}
     r = requests.get(page_url, headers=headers, timeout=60)
     r.raise_for_status()
@@ -209,8 +266,7 @@ def find_latest_incomplete_commissioner_link(page_url: str):
     return month_dt.strftime("%B %Y"), mmmyy, link_text, file_url
 
 
-# ---------- Download + read ----------
-
+# Download excel file
 def download_file(url: str, filename: str) -> str:
     ensure_download_dir()
     path = os.path.join(DOWNLOAD_DIR, filename)
@@ -224,17 +280,17 @@ def download_file(url: str, filename: str) -> str:
 
     return path
 
-
+# Read excel file downloaded it
 def read_sheet(path: str, sheet_name: str) -> pd.DataFrame:
     return pd.read_excel(
         path,
         sheet_name=sheet_name,
-        header=HEADER_ROW_0_INDEXED,
+        header=HEADER_ROW,
         engine="openpyxl",
     )
 
 
-# ---------- Column slicing (Excel letters) ----------
+# Convert letter to index + specify which columns to keep
 
 def excel_col_to_index(col: str) -> int:
     col = col.strip().upper()
@@ -244,32 +300,19 @@ def excel_col_to_index(col: str) -> int:
     return idx - 1
 
 
-def keep_A_to_F_and_DH_to_end(df: pd.DataFrame) -> pd.DataFrame:
-    ncols = df.shape[1]
-    end_prefix = excel_col_to_index(KEEP_PREFIX_END)
-    start_suffix = excel_col_to_index(KEEP_SUFFIX_START)
-
-    prefix_idx = list(range(0, min(end_prefix + 1, ncols)))
-    suffix_idx = list(range(start_suffix, ncols)) if start_suffix < ncols else []
-
-    out = df.iloc[:, prefix_idx + suffix_idx].copy()
-    out = out.loc[:, ~out.columns.astype(str).str.match(r"^Unnamed")]
-    return out
-
-
-def keep_ranges(df: pd.DataFrame, ranges) -> pd.DataFrame:
-    ncols = df.shape[1]
+def keep_cols(df: pd.DataFrame, ranges) -> pd.DataFrame:
+    num_cols = df.shape[1]
     keep_idx = []
     for start, end in ranges:
         s = excel_col_to_index(start)
         e = excel_col_to_index(end)
-        if s >= ncols:
+        if s >= num_cols:
             continue
-        e = min(e, ncols - 1)
+        e = min(e, num_cols - 1)
         keep_idx.extend(range(s, e + 1))
 
     if not keep_idx:
-        raise ValueError(f"No columns selected for ranges={ranges}. Sheet has {ncols} cols.")
+        raise ValueError(f"No columns selected for ranges={ranges}. Sheet has {num_cols} cols.")
 
     # dedupe preserve order
     seen = set()
@@ -280,13 +323,8 @@ def keep_ranges(df: pd.DataFrame, ranges) -> pd.DataFrame:
     return out
 
 
-# ---------- Combine: prepend National rows + set column B to NATIONAL ----------
-
+# Move national rows at the top (to keep consistency with DKs format)
 def prepend_national_rows(main_df: pd.DataFrame, national_df: pd.DataFrame, label: str) -> pd.DataFrame:
-    """
-    Prepend national_df rows to main_df, aligning on column names.
-    Also sets *column B of the final output* to `label` for the prepended rows.
-    """
     if national_df.empty:
         return main_df
 
@@ -301,51 +339,49 @@ def prepend_national_rows(main_df: pd.DataFrame, national_df: pd.DataFrame, labe
     return pd.concat([aligned, main_df], ignore_index=True)
 
 
-# ---------- Main ----------
+# ====== MAIN section of the code ======
 
 def main():
     start = time.time()
 
     sh = connect_gsheets()
-    meta_ws = get_or_create_worksheet(sh, META_SHEET_NAME, rows=1000, cols=10)
-    out_ws = get_or_create_worksheet(sh, OUTPUT_SHEET_NAME, rows=5000, cols=250)
+    meta_ws = get_or_create_ws(sh, META_SHEET_NAME, rows=1000, cols=20)
+    out_ws = get_or_create_ws(sh, OUTPUT_SHEET_NAME, rows=5000, cols=250)
 
     try:
-        month_label, mmmyy, link_text, file_url = find_latest_incomplete_commissioner_link(PAGE_URL)
+        month_label, mmmyy, link_text, file_url = find_commissioner_link(PAGE_URL)
         filename = f"Incomplete Commissioner {mmmyy}.xlsx"
         filepath = download_file(file_url, filename)
 
-        # ---- MAIN DATA: ICB sheet ----
+        # Process ICB datasheet
         df_icb = read_sheet(filepath, ICB_SHEET_NAME)
-        df_icb = keep_A_to_F_and_DH_to_end(df_icb)
+        df_icb = keep_cols(df_icb, ICB_KEEP_COL)
 
+        # Filter data
         if TFC_COL not in df_icb.columns:
             raise ValueError(f"'{TFC_COL}' not found in {ICB_SHEET_NAME} after slicing.")
-
         df_icb = df_icb[df_icb[TFC_COL].astype(str).str.strip() == TFC_VALUE].copy()
 
-        # Keep % columns as numeric for ICB (same behavior as before)
+        # Keep % columns as numeric
         protect = {"Region Code", "Region Name", "ICB Code", "ICB Name", TFC_COL, "Treatment Function"}
-        df_icb = coerce_numeric_for_sheets(df_icb, protect_cols=protect)
+        df_icb = convert_to_numeric(df_icb, protect_cols=protect)
 
-        # ---- EXTRA TOP ENTRY: National sheet ----
+        # National sheet
         df_nat = read_sheet(filepath, NATIONAL_SHEET_NAME)
-        df_nat = keep_ranges(df_nat, NAT_KEEP_RANGES)
+        df_nat = keep_cols(df_nat, NAT_KEEP_COL)
 
         if TFC_COL not in df_nat.columns:
             raise ValueError(f"'{TFC_COL}' not found in {NATIONAL_SHEET_NAME} after slicing A:C + DE:DM.")
-
         df_nat = df_nat[df_nat[TFC_COL].astype(str).str.strip() == TFC_VALUE].copy()
 
-        # Keep % columns numeric for National too (matching ICB handling)
-        df_nat = coerce_numeric_for_sheets(df_nat, protect_cols=protect)
-
-        # ---- Prepend National row(s) and set column B to NATIONAL ----
+        # Keep % columns numeric for National too and prepend national rows
+        df_nat = convert_to_numeric(df_nat, protect_cols=protect)
         df_out = prepend_national_rows(df_icb, df_nat, NATIONAL_LABEL)
 
-        clear_and_write_worksheet(out_ws, df_out)
+        clear_and_write_ws(out_ws, df_out)
 
         runtime = time.time() - start
+
         append_meta_row(
             meta_ws,
             status=(
@@ -354,14 +390,14 @@ def main():
                 f"[ICB kept A:F & DH:END; Nat kept A:C & DE:DM]"
             ),
             filename=filename,
-            nrows=len(df_out),
-            ncols=len(df_out.columns),
+            num_rows=len(df_out),
+            num_cols=len(df_out.columns),
             runtime_seconds=runtime,
         )
 
         print(
             f"Loaded {month_label} | Incomplete Commissioner | "
-            f"ICB rows={len(df_icb)} + National rows={len(df_nat)} (prepended, colB={NATIONAL_LABEL})"
+            f"ICB rows={len(df_icb)} + National rows={len(df_nat)}"
         )
 
     except Exception as e:
@@ -370,8 +406,8 @@ def main():
             meta_ws,
             status=f"ERROR: {type(e).__name__}: {e}",
             filename="",
-            nrows=0,
-            ncols=0,
+            num_rows=0,
+            num_cols=0,
             runtime_seconds=runtime,
         )
         raise
