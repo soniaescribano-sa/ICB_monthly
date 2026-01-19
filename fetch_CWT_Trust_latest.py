@@ -382,6 +382,7 @@ def write_meta_row_row5(
     latest_cols: int,
     runtime_seconds: float,
     original_files: str,
+    latest_checked_month_year: str,
 ):
     if meta_ws.row_count < META_WRITE_ROW or meta_ws.col_count < 9:
         meta_ws.resize(
@@ -392,7 +393,16 @@ def write_meta_row_row5(
     status_emoji = "✅" if ok else "❌"
     now = datetime.now(LONDON_TZ)
 
-    file_status = f"{months_written} months written to {OUTPUT_SHEET_NAME}"
+    latest_checked_mmmyy = (
+        month_year_to_mmmyy(latest_checked_month_year)
+        if latest_checked_month_year else ""
+    )
+
+    # Requested meta text + show latest month-year checked by the code
+    file_status = (
+        f"{OUTPUT_SHEET_NAME} month yy already fetched: {latest_checked_mmmyy} "
+        f"(latest checked: {latest_checked_month_year})"
+    )
 
     values = [[
         status_emoji,
@@ -424,6 +434,7 @@ def main():
     latest_rows = 0
     latest_cols = 0
     all_original_files = []
+    latest_month_year = ""  # ensure defined even if something fails early
 
     try:
         downloads, latest_month_year = fetch_all_workbooks_with_playwright()
@@ -477,6 +488,7 @@ def main():
             latest_cols=latest_cols,
             runtime_seconds=runtime,
             original_files="; ".join(all_original_files),
+            latest_checked_month_year=latest_month_year,
         )
 
     except Exception:
@@ -490,6 +502,7 @@ def main():
             latest_cols=0,
             runtime_seconds=runtime,
             original_files="; ".join(all_original_files),
+            latest_checked_month_year=latest_month_year,
         )
         raise
 
