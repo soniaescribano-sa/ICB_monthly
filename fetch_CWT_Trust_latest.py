@@ -17,7 +17,7 @@ from google.oauth2.service_account import Credentials
 # ====== CONFIG ======
 PAGE_URL = "https://www.england.nhs.uk/statistics/statistical-work-areas/cancer-waiting-times/monthly-data-and-summaries/2025-26-monthly-cancer-waiting-times-statistics/"
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1L-22eKojGVYdSq2gPMzX3K8MC9IZVyEtAQ3s7h2jv28/edit?gid=0#gid=0"
-SERVICE_ACCOUNT_JSON = "/Users/sonia.rodriguez/Documents/ICB_Performance_Risks/shiny-to-sheets-482011-38125cda0263.json"
+SERVICE_ACCOUNT_JSON = "service_account.json"
 
 META_SHEET_NAME = "meta_all"
 META_WRITE_ROW = 5  # values only (no headers)
