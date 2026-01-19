@@ -34,9 +34,12 @@ jobs:
         env:
           PYTHONUNBUFFERED: "1"
         run: |
-          python fetch_CWT_ICB_latest.py
-          python fetch_CWT_Trust_latest.py
-          python fetch_RefConDet_ICB_latest.py
           python fetch_incompleteRTT_ICB_latest.py
           python fetch_incompleteRTT_Trust_latest.py
+          python fetch_RefConDet_ICB_latest.py
+          python fetch_CWT_Trust_latest.py
+          python fetch_CWT_ICB_latest.py
+          
+          
+          
 
