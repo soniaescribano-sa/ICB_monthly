@@ -20,7 +20,7 @@ SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1L-22eKojGVYdSq2gPMzX3
 SERVICE_ACCOUNT_JSON = "service_account.json"
 
 META_SHEET_NAME = "meta_all"
-META_WRITE_ROW = 5  # values only (no headers)
+META_WRITE_ROW = 13  # values only (no headers)
 
 OUTPUT_SHEET_NAME = "CWT-Trust-all"
 DOWNLOAD_DIR = os.path.abspath("./downloads")
