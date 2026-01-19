@@ -2,7 +2,7 @@ name: Monthly Python run
 
 on:
   schedule:
-    - cron: "59 15 19 * *"
+    - cron: "00 07 20 * *"
   workflow_dispatch: {}
 
 jobs:
