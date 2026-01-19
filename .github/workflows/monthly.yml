@@ -36,4 +36,7 @@ jobs:
         run: |
           python fetch_CWT_ICB_latest.py
           python fetch_CWT_Trust_latest.py
+          python fetch_RefConDet_ICB_latest.py
+          python fecth_incompleteRTT_ICB_latest.py
+          python fecth_incompleteRTT_Trust_latest.py
 
