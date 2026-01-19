@@ -4,3 +4,4 @@ beautifulsoup4
 gspread
 google-auth
 openpyxl
+playwright
