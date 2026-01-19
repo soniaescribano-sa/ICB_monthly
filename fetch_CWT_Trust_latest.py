@@ -405,7 +405,7 @@ def write_meta_row_row5(
     elif months_written == 0:
         status_emoji = "⚠️"
         file_status = (
-            f"{OUTPUT_SHEET_NAME} month yy already fetched: {latest_checked_mmmyy} "
+            f"{OUTPUT_SHEET_NAME}: {latest_checked_mmmyy} already fetched "
             f"(latest checked: {latest_checked_month_year})"
         )
 
