@@ -445,7 +445,7 @@ def main():
             write_meta_row_14(
                 meta_ws,
                 status_emoji="⚠️",
-                update_msg=f"CWT-ICB already has {mmmyy} (no new data added)",
+                update_msg=f"CWT-ICB {mmmyy} already fetched",
                 nrows=0,
                 ncols=0,
                 runtime_seconds=runtime,
