@@ -315,7 +315,7 @@ def main():
             write_meta(
                 meta_ws,
                 ok=False,
-                message=f"incompleteRTT-ICB: {mmmyy} already exists",
+                message=f"incompleteRTT-ICB: {mmmyy} already fetched",
                 rows=0,
                 cols=0,
                 runtime=runtime,
