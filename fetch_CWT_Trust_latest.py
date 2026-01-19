@@ -390,19 +390,31 @@ def write_meta_row_row5(
             cols=max(meta_ws.col_count, 9),
         )
 
-    status_emoji = "✅" if ok else "❌"
     now = datetime.now(LONDON_TZ)
 
     latest_checked_mmmyy = (
         month_year_to_mmmyy(latest_checked_month_year)
-        if latest_checked_month_year else ""
+        if latest_checked_month_year
+        else ""
     )
 
-    # Requested meta text + show latest month-year checked by the code
-    file_status = (
-        f"{OUTPUT_SHEET_NAME} month yy already fetched: {latest_checked_mmmyy} "
-        f"(latest checked: {latest_checked_month_year})"
-    )
+    if not ok:
+        status_emoji = "❌"
+        file_status = f"{OUTPUT_SHEET_NAME}: run failed"
+
+    elif months_written == 0:
+        status_emoji = "⚠️"
+        file_status = (
+            f"{OUTPUT_SHEET_NAME} month yy already fetched: {latest_checked_mmmyy} "
+            f"(latest checked: {latest_checked_month_year})"
+        )
+
+    else:
+        status_emoji = "✅"
+        file_status = (
+            f"{OUTPUT_SHEET_NAME}: {latest_checked_mmmyy} fetched "
+            f"(latest checked: {latest_checked_month_year})"
+        )
 
     values = [[
         status_emoji,
