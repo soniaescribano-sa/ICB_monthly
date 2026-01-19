@@ -21,7 +21,7 @@ SHINY_URL = "https://nhsd-ndrs.shinyapps.io/cwt_referral_conversion_detection/"
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1L-22eKojGVYdSq2gPMzX3K8MC9IZVyEtAQ3s7h2jv28/edit?gid=0#gid=0"
 FALLBACK_SPREADSHEET_TITLE = "RefConDet ICB all (auto-created)"
 
-SERVICE_ACCOUNT_JSON = "/Users/sonia.rodriguez/Documents/ICB_Performance_Risks/shiny-to-sheets-482011-38125cda0263.json"
+SERVICE_ACCOUNT_JSON = "service_account.json"
 
 META_SHEET_NAME = "meta_all"
 FILTER_SHEET_NAME = "RefConDet-ICB-all"
